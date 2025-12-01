@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trust Us — Professional Inventory Dashboard</title>
+
+  <!-- Libraries -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* ---------- THEME ---------- */
+    :root{
+      --bg:#f4f6f9;
+      --panel:#ffffff;
+      --muted:#6c757d;
+      --accent:#0d6efd; /* primary */
+      --accent-2:#6610f2; /* secondary */
+      --success:#28a745;
+      --danger:#dc3545;
+      --radius:12px;
+      --glass: rgba(255,255,255,0.6);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;color:#263238;background:var(--bg);}
+
+    /* ---------- LAYOUT ---------- */
+    .app{
+      display:grid;
+      grid-template-columns:260px 1fr;
+      min-height:100vh;
+      gap:24px;
+      padding:28px;
+    }
+
+    /* Sidebar */
+    .sidebar{
+      background:linear-gradient(180deg,#0f1724 0%, #0b1a2b 100%);
+      color: #e6eef8;
+      border-radius: var(--radius);
+      padding:22px;
+      box-shadow:0 8px 30px rgba(2,6,23,0.35);
+      position:sticky; top:28px; height:calc(100vh - 56px); overflow:auto;
+    }
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+    .brand .logo{background:linear-gradient(135deg,var(--accent),var(--accent-2));width:44px;height:44px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;color:white}
+    .brand h2{font-size:1.05rem;margin:0}
+    .nav{margin-top:10px}
+    .nav a{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;color:rgba(230,238,248,0.95);text-decoration:none;margin-bottom:6px}
+    .nav a:hover{background:rgba(255,255,255,0.03)}
+    .nav a.active{background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.02)}
+
+    /* Main */
+    .main{display:flex;flex-direction:column;gap:18px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .search{display:flex;align-items:center;background:var(--panel);padding:10px 12px;border-radius:12px;box-shadow:0 6px 18px rgba(15,23,42,0.06);width:100%}
+    .search input{border:0;outline:none;width:100%;font-size:0.95rem}
+    .actions{display:flex;gap:10px}
+    .btn{padding:9px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-ghost{background:transparent;border:1px solid rgba(15,23,42,0.06)}
+
+    /* Dashboard grid */
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px}
+    .card{background:var(--panel);padding:18px;border-radius:12px;box-shadow:0 8px 22px rgba(14,20,30,0.06)}
+    .span-3{grid-column: span 3}
+    .span-9{grid-column: span 9}
+    .span-12{grid-column: span 12}
+
+    .stat{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .stat .meta{color:var(--muted);font-size:0.85rem}
+    .stat h3{margin:0}
+
+    /* Table area */
+    .table-wrap{overflow:auto}
+    table.dataTable thead th{background:transparent;color:#111;font-weight:700;padding:14px}
+    .dataTables_wrapper .dataTables_filter input{width:300px;padding:8px;border-radius:8px;border:1px solid #e6eef8}
+
+    /* Details slide-over */
+    .drawer{position:fixed;right:24px;top:24px;bottom:24px;width:420px;background:var(--panel);border-radius:12px;box-shadow:0 18px 50px rgba(2,6,23,0.25);transform:translateX(120%);transition:transform .32s ease;overflow:auto;padding:18px}
+    .drawer.open{transform:translateX(0)}
+
+    /* Stock chips */
+    .chip{display:inline-block;padding:6px 8px;border-radius:999px;font-weight:700;font-size:0.9rem}
+    .chip.low{color:var(--danger);background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.12)}
+    .chip.medium{color:#b06b00;background:rgba(255,193,7,0.06);border:1px solid rgba(255,193,7,0.12)}
+    .chip.high{color:var(--success);background:rgba(40,167,69,0.06);border:1px solid rgba(40,167,69,0.12)}
+
+    /* Responsive */
+    @media (max-width:980px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.drawer{position:fixed;left:12px;right:12px;width:auto}} 
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">TU</div>
+        <div>
+          <h2>Trust Us</h2>
+          <div style="font-size:12px;color:rgba(230,238,248,0.7)">General Trading — Inventory</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a class="active"><i class="fas fa-th-large"></i> Dashboard</a>
+        <a><i class="fas fa-warehouse"></i> Inventory</a>
+        <a><i class="fas fa-boxes-stacked"></i> Suppliers</a>
+        <a><i class="fas fa-chart-line"></i> Reports</a>
+        <a><i class="fas fa-cog"></i> Settings</a>
+      </nav>
+
+      <hr style="border:0;border-top:1px solid rgba(255,255,255,0.03);margin:18px 0">
+
+      <div style="font-size:13px;color:rgba(230,238,248,0.8);">
+        Quick Links
+        <ul style="padding-left:14px;margin:8px 0 0 0;color:rgba(230,238,248,0.7)">
+          <li style="margin:6px 0"><i class="fa fa-file-export"></i> Export CSV</li>
+          <li style="margin:6px 0"><i class="fa fa-upload"></i> Import Stock</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <div class="topbar">
+        <div class="search">
+          <i class="fa fa-search" style="margin-right:10px;color:var(--muted)"></i>
+          <input id="global-search" placeholder="Search barcode, product or department..." />
+        </div>
+        <div class="actions">
+          <button id="show-add-modal" class="btn btn-primary"><i class="fa fa-plus"></i> Add Item</button>
+          <button id="export-csv" class="btn btn-ghost"><i class="fa fa-file-csv"></i> Export</button>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card span-3">
+          <div class="stat">
+            <div>
+              <div class="meta">Total SKUs</div>
+              <h3 id="total-skus">—</h3>
+            </div>
+            <div style="font-size:22px;color:var(--accent)"><i class="fa fa-box"></i></div>
+          </div>
+        </div>
+
+        <div class="card span-3">
+          <div class="stat">
+            <div>
+              <div class="meta">Items Low Stock</div>
+              <h3 id="low-count">—</h3>
+            </div>
+            <div style="font-size:22px;color:#f59f00"><i class="fa fa-exclamation-triangle"></i></div>
+          </div>
+        </div>
+
+        <div class="card span-3">
+          <div class="stat">
+            <div>
+              <div class="meta">Total Quantity</div>
+              <h3 id="total-qty">—</h3>
+            </div>
+            <div style="font-size:22px;color:var(--success)"><i class="fa fa-layer-group"></i></div>
+          </div>
+        </div>
+
+        <div class="card span-3">
+          <div class="stat">
+            <div>
+              <div class="meta">Departments</div>
+              <h3 id="dept-count">—</h3>
+            </div>
+            <div style="font-size:22px;color:#6f42c1"><i class="fa fa-sitemap"></i></div>
+          </div>
+        </div>
+
+        <div class="card span-9">
+          <h4 style="margin-top:0">Inventory</h4>
+          <div class="table-wrap">
+            <table id="inventory-table" class="display responsive" style="width:100%">
+              <thead>
+                <tr>
+                  <th>Barcode</th>
+                  <th>Product</th>
+                  <th>Unit</th>
+                  <th>Department</th>
+                  <th>Sub Department</th>
+                  <th>In Stock</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card span-3">
+          <h4 style="margin-top:0">Stock Trend</h4>
+          <canvas id="mini-chart" height="140"></canvas>
+        </div>
+
+        <div class="card span-12" style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+          <div style="color:var(--muted)">Click a row to view details — or use the Add Item button.</div>
+          <div><small style="color:var(--muted)">Built for quick warehouse oversight</small></div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- DETAILS DRAWER -->
+    <aside id="details-drawer" class="drawer" aria-hidden="true">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0"><i class="fa fa-info-circle"></i> Item Details</h3>
+        <button id="close-drawer" class="btn btn-ghost"><i class="fa fa-times"></i></button>
+      </div>
+      <hr>
+      <div id="detail-content" style="padding-top:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;color:var(--muted)">Product</div>
+            <h2 id="detail-product-name">—</h2>
+          </div>
+          <div id="detail-chip" style="text-align:right"></div>
+        </div>
+
+        <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <div style="font-size:12px;color:var(--muted)">Barcode</div>
+            <div id="detail-barcode">—</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--muted)">Unit</div>
+            <div id="detail-unit">—</div>
+          </div>
+
+          <div>
+            <div style="font-size:12px;color:var(--muted)">Department</div>
+            <div id="detail-department">—</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--muted)">Sub Department</div>
+            <div id="detail-sub-department">—</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;gap:8px">
+          <button id="edit-button" class="btn btn-primary"><i class="fa fa-edit"></i> Edit</button>
+          <button id="transfer-button" class="btn btn-ghost"><i class="fa fa-exchange-alt"></i> Transfer</button>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- SIMPLE MODAL (re-uses original form fields) -->
+  <div id="data-modal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(9,12,18,0.45);z-index:60">
+    <div style="width:720px;background:var(--panel);border-radius:12px;padding:18px;box-shadow:0 40px 90px rgba(2,6,23,0.45)">
+      <h3 id="modal-title">Add / Edit Item</h3>
+      <form id="data-form" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
+        <input type="hidden" id="item-barcode-original">
+        <label style="grid-column:span 2">
+          Barcode
+          <input id="barcode-input" name="Barcode" required style="width:100%;padding:10px;border-radius:8px;border:1px solid #e9eef5;margin-top:6px">
+        </label>
+        <label style="grid-column:span 2">
+          Product
+          <input id="product-input" name="Product" required style="width:100%;padding:10px;border-radius:8px;border:1px solid #e9eef5;margin-top:6px">
+        </label>
+        <label>
+          Unit
+          <input id="unit-input" name="Unit" style="width:100%;padding:10px;border-radius:8px;border:1px solid #e9eef5;margin-top:6px">
+        </label>
+        <label>
+          In Stock
+          <input id="in-stock-input" type="number" min="0" name="In Stock" required style="width:100%;padding:10px;border-radius:8px;border:1px solid #e9eef5;margin-top:6px">
+        </label>
+        <label>
+          Department
+          <input id="department-input" name="Department" style="width:100%;padding:10px;border-radius:8px;border:1px solid #e9eef5;margin-top:6px">
+        </label>
+        <label>
+          Sub Department
+          <input id="sub-department-input" name="Sub Department" style="width:100%;padding:10px;border-radius:8px;border:1px solid #e9eef5;margin-top:6px">
+        </label>
+
+        <div style="grid-column:span 2;display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+          <button type="button" id="cancel-button" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Reference: original file used as starting point. (You can find the uploaded index.html in the canvas.)
+
+    // --- Data & storage ---
+    const STORAGE_KEY = 'warehouseInventoryData_v4_responsive';
+    const LOW_STOCK_THRESHOLD = 50;
+    const MEDIUM_STOCK_THRESHOLD = 150;
+
+    const initialData = [
+      { "Barcode": "8936028610698", "Product": "AKITAKOMACHI VIETNAMESE RICE 5KG", "Local Name": "", "Unit": "Pcs", "Department": "RICE", "Sub Department": "Rice", "In Stock": 2728 },
+      { "Barcode": "8809404601019", "Product": "Babyrang Plain Baby Wipes 100pcs", "Local Name": "베비랑 물티슈 리필 100매", "Unit": "Pcs", "Department": "Lifestyle", "Sub Department": "General", "In Stock": 20 },
+      { "Barcode": "8809404600999", "Product": "Babyrang Plain Baby Wipes 80pcs", "Local Name": "베비랑 물티슈 캡형 80매", "Unit": "Pcs", "Department": "Lifestyle", "Sub Department": "General", "In Stock": 80 },
+      { "Barcode": "8804387440087", "Product": "Bada Sushi Gim (Laver For Rice Roll) 220G", "Local Name": "바다향 김밥용김 (100매) 220G", "Unit": "Pcs", "Department": "Dry Items", "Sub Department": "Dried Vegetables", "In Stock": 96 },
+      { "Barcode": "8801392011887", "Product": "BIBIGO PAN-FRIED MANDU 315G*2", "Local Name": "비비고 군만두 315G*2EA", "Unit": "Pcs", "Department": "Frozen Items", "Sub Department": "Frozen Food", "In Stock": 48 },
+      { "Barcode": "8801007325248", "Product": "BIBIGO STEAMED DUMPLING 420G*2EA", "Local Name": "비비고 왕만두 420G*2EA", "Unit": "Pcs", "Department": "Frozen Items", "Sub Department": "Frozen Food", "In Stock": 4 },
+      { "Barcode": "8809146750068", "Product": "YOUNGHWA BLACK BEAN SAUCE 10KG", "Local Name": "영화 검정양념장 10KG", "Unit": "Pcs", "Department": "Chilled Items", "Sub Department": "Sauce", "In Stock": 123 },
+      { "Barcode": "0000000044035", "Product": "Xpera Speed300 Light Pink Golf Balls Pouch 9EA", "Local Name": "시합용 골프공", "Unit": "Pcs", "Department": "General", "Sub Department": "General", "In Stock": 30 }
+    ];
+
+    let inventoryData = [];
+    let dataTable = null;
+
+    function loadData(){
+      const s = localStorage.getItem(STORAGE_KEY);
+      if(s){ inventoryData = JSON.parse(s); } else { inventoryData = initialData; saveData(); }
+    }
+    function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(inventoryData)); refreshTable(); updateStats(); }
+
+    function getStockClass(q){ if(q < LOW_STOCK_THRESHOLD) return 'low'; if(q < MEDIUM_STOCK_THRESHOLD) return 'medium'; return 'high'; }
+
+    // Initialize DataTable
+    function initializeDataTable(){
+      const cols = [
+        { title:'Barcode', data:'Barcode' },
+        { title:'Product', data:'Product' },
+        { title:'Unit', data:'Unit' },
+        { title:'Department', data:'Department' },
+        { title:'Sub Department', data:'Sub Department' },
+        { title:'In Stock', data:'In Stock', render:function(d){ return `<span class='chip ${getStockClass(parseInt(d||0))}'>${d}</span>` } }
+      ];
+
+      dataTable = $('#inventory-table').DataTable({ data:inventoryData, columns:cols, responsive:true, order:[[5,'asc']], pageLength:8 });
+
+      // Row click
+      $('#inventory-table tbody').off('click','tr').on('click','tr',function(){ const row = dataTable.row(this).data(); if(!row) return; openDetails(row); });
+    }
+
+    function refreshTable(){ if(dataTable){ dataTable.clear(); dataTable.rows.add(inventoryData); dataTable.draw(); } else initializeDataTable(); }
+
+    function updateStats(){ document.getElementById('total-skus').textContent = inventoryData.length; document.getElementById('total-qty').textContent = inventoryData.reduce((s,i)=>s+ (parseInt(i['In Stock'])||0),0); document.getElementById('low-count').textContent = inventoryData.filter(i=> (parseInt(i['In Stock'])||0) < LOW_STOCK_THRESHOLD).length; document.getElementById('dept-count').textContent = [...new Set(inventoryData.map(i=>i.Department))].length; }
+
+    // Details drawer
+    function openDetails(row){ document.getElementById('detail-product-name').textContent = row.Product || 'N/A'; document.getElementById('detail-barcode').textContent = row.Barcode || '—'; document.getElementById('detail-unit').textContent = row.Unit || '—'; document.getElementById('detail-department').textContent = row.Department || '—'; document.getElementById('detail-sub-department').textContent = row['Sub Department'] || '—';
+      const chip = document.getElementById('detail-chip'); chip.innerHTML = `<span class='chip ${getStockClass(parseInt(row['In Stock']||0))}'>${row['In Stock']}</span>`;
+      document.getElementById('details-drawer').classList.add('open');
+      // store selected
+      document.getElementById('edit-button').dataset.barcode = row.Barcode;
+    }
+
+    document.getElementById('close-drawer').addEventListener('click',()=>{ document.getElementById('details-drawer').classList.remove('open'); });
+
+    // Modal logic
+    const modal = document.getElementById('data-modal');
+    const form = document.getElementById('data-form');
+
+    document.getElementById('show-add-modal').addEventListener('click',()=>{ document.getElementById('modal-title').textContent='Add New Item'; form.reset(); document.getElementById('item-barcode-original').value=''; modal.style.display='flex'; });
+    document.getElementById('cancel-button').addEventListener('click',()=>{ modal.style.display='none'; });
+
+    // Edit button in drawer
+    document.getElementById('edit-button').addEventListener('click',function(){ const barcode=this.dataset.barcode; const item = inventoryData.find(d=>d.Barcode===barcode); if(!item) return; document.getElementById('modal-title').textContent=`Edit: ${item.Product}`; document.getElementById('item-barcode-original').value = item.Barcode; document.getElementById('barcode-input').value = item.Barcode; document.getElementById('product-input').value = item.Product; document.getElementById('unit-input').value = item.Unit; document.getElementById('in-stock-input').value = item['In Stock']; document.getElementById('department-input').value = item.Department; document.getElementById('sub-department-input').value = item['Sub Department']; modal.style.display='flex'; });
+
+    form.addEventListener('submit',function(e){ e.preventDefault(); const original = document.getElementById('item-barcode-original').value; const newItem = { Barcode: document.getElementById('barcode-input').value.trim(), Product: document.getElementById('product-input').value.trim(), Unit: document.getElementById('unit-input').value.trim(), Department: document.getElementById('department-input').value.trim(), 'Sub Department': document.getElementById('sub-department-input').value.trim(), 'In Stock': parseInt(document.getElementById('in-stock-input').value||0) };
+      if(!newItem.Barcode){ alert('Barcode required'); return; }
+      if(original){ const idx = inventoryData.findIndex(i=>i.Barcode===original); if(idx!==-1) inventoryData[idx]=newItem; alert('Updated'); } else { if(inventoryData.some(i=>i.Barcode===newItem.Barcode)){ alert('Barcode exists'); return; } inventoryData.push(newItem); alert('Added'); }
+      saveData(); modal.style.display='none'; document.getElementById('details-drawer').classList.remove('open'); });
+
+    // Search box hooked to DataTables search
+    document.getElementById('global-search').addEventListener('input',function(){ if(dataTable) dataTable.search(this.value).draw(); });
+
+    // Export CSV (simple)
+    document.getElementById('export-csv').addEventListener('click',()=>{
+      const rows = [ ['Barcode','Product','Unit','Department','Sub Department','In Stock'], ...inventoryData.map(i=>[i.Barcode,i.Product,i.Unit,i.Department,i['Sub Department'],i['In Stock']]) ];
+      const csv = rows.map(r=>r.map(c=>`"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv],{type:'text/csv'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='inventory_export.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    // Chart
+    let miniChart = null;
+    function initChart(){ const ctx = document.getElementById('mini-chart').getContext('2d'); const data = {
+      labels: inventoryData.slice(0,8).map(i=>i.Product.slice(0,12)),
+      datasets:[{label:'Qty',data:inventoryData.slice(0,8).map(i=>i['In Stock']), tension:0.3, fill:true}]
+    };
+    miniChart = new Chart(ctx,{type:'line',data,options:{plugins:{legend:{display:false}},scales:{x:{display:false}}}});
+    }
+    function updateChart(){ if(miniChart){ miniChart.data.labels = inventoryData.slice(0,8).map(i=>i.Product.slice(0,12)); miniChart.data.datasets[0].data = inventoryData.slice(0,8).map(i=>i['In Stock']); miniChart.update(); } }
+
+    function bootstrap(){ loadData(); initializeDataTable(); updateStats(); initChart(); }
+    $(document).ready(()=>{ bootstrap(); });
+
+  </script>
+</body>
+</html>
